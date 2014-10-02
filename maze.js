@@ -2,18 +2,20 @@ $(function(){
 
   var Maze = $('#canvas');
   var BlockSize = 20;
+  var StrokeColor = '#bdaca2';
   var StrokeSize = 6;
-
-  var Wall = new Array();
-
-  var Direction = new Array(4);
+  var BackgroundColor = '#fbf8ef';
+  var SolverColor = '#e95937';
+  var Title = $('h1');
 
   function init(){
-    w = $("#wrapper").width() - ($("#wrapper").width()%BlockSize);
-    h = $("#wrapper").height() - ($("#wrapper").height()%BlockSize);
+    Maze.clearCanvas();
 
-    w -= 40;
-    h -= 200;
+    Wall = new Array();
+    Direction = new Array(4);
+
+    w = $("#wrapper").width() - ($("#wrapper").width()%BlockSize) - 60;
+    h = $("#wrapper").height() - ($("#wrapper").height()%BlockSize) - 140;
 
     Maze.attr({
       width: w + StrokeSize,
@@ -34,29 +36,48 @@ $(function(){
 
     Wall[BlockSum-1].r = 0;
 
-    drawFrameLeft();
-    drawFrameBottom();
-
-    console.log(BlockSum);
+    drawGrid();
+    drawStart();
+    drawGoal();
 
     Direction = [1, BlockWidthCount];
   }
 
-  function drawFrameLeft() {
+  function drawGrid() {
+    for(var i=0; i<=BlockHeightCount; i++) {
+      Maze.drawLine({
+        strokeStyle: StrokeColor,
+        strokeWidth: StrokeSize,
+        x1: 0,  y1: i*BlockSize+StrokeSize/2,
+        x2: w+StrokeSize,  y2: i*BlockSize+StrokeSize/2,
+      })
+    }
+
+    for(var i=0; i<=BlockWidthCount; i++) {
+      Maze.drawLine({
+        strokeStyle: StrokeColor,
+        strokeWidth: StrokeSize,
+        x1: i*BlockSize+StrokeSize/2,  y1: 0,
+        x2: i*BlockSize+StrokeSize/2,  y2: h+StrokeSize,
+      })
+    }
+  }
+
+  function drawStart() {
     Maze.drawLine({
-      strokeStyle: "#34495e",
+      strokeStyle: BackgroundColor,
       strokeWidth: StrokeSize,
-      x1: StrokeSize/2,  y1: BlockSize,
-      x2: StrokeSize/2,  y2: h+StrokeSize,
+      x1: StrokeSize/2,  y1: StrokeSize,
+      x2: StrokeSize/2,  y2: BlockSize,
     })
   }
 
-  function drawFrameBottom() {
+  function drawGoal() {
     Maze.drawLine({
-      strokeStyle: "#34495e",
+      strokeStyle: BackgroundColor,
       strokeWidth: StrokeSize,
-      x1: 0,  y1: StrokeSize/2,
-      x2: w+StrokeSize,  y2: StrokeSize/2,
+      x1: w+StrokeSize/2,  y1: h-BlockSize+StrokeSize,
+      x2: w+StrokeSize/2,  y2: h,
     })
   }
 
@@ -65,10 +86,10 @@ $(function(){
     y += StrokeSize;
 
     Maze.drawLine({
-      strokeStyle: "#34495e",
+      strokeStyle: BackgroundColor,
       strokeWidth: StrokeSize,
       x1: x+BlockSize,  y1: y,
-      x2: x+BlockSize,  y2: y+BlockSize,
+      x2: x+BlockSize,  y2: y+BlockSize-StrokeSize,
     })
   }
 
@@ -77,23 +98,11 @@ $(function(){
     y += StrokeSize/2;
 
     Maze.drawLine({
-      strokeStyle: "#34495e",
+      strokeStyle: BackgroundColor,
       strokeWidth: StrokeSize,
       x1: x,  y1: y+BlockSize,
-      x2: x+BlockSize,  y2: y+BlockSize,
+      x2: x+BlockSize-StrokeSize,  y2: y+BlockSize,
     })
-  }
-
-  function drawCorner(x, y) {
-    x += StrokeSize/2;
-    y += StrokeSize/2;
-
-    Maze.drawRect({
-      fillStyle: '#34495e',
-      x: x+BlockSize, y: y+BlockSize,
-      width: StrokeSize,
-      height: StrokeSize
-    });
   }
 
   function printCluster(x, y, c) {
@@ -140,52 +149,100 @@ $(function(){
     return 1;
   }
 
-  function makeMaze() {
-    init();
+  function drawCircle(x, y) {
+    Maze.drawArc({
+      fillStyle: SolverColor,
+      x: x+BlockSize/2+StrokeSize/2, y: y+BlockSize/2+StrokeSize/2,
+      radius: BlockSize/2-StrokeSize/2
+    });
+  }
 
-    while(1) {
+  function startMake() {
+    loop = setInterval(function(){
       var r = ~~(Math.random()*(BlockSum-1-1));
       var d;
 
-      if(r == BlockSum-1) continue; // 右下
+      if(r != BlockSum-1) {// 右下
 
-      if(r >= BlockSum-BlockWidthCount) { // 下端
-        d = Direction[0];
-      } else if(r%BlockWidthCount == BlockWidthCount-1) { // 右端
-        d = Direction[1];
-      } else {
-        d = Direction[~~(Math.random()*(2))];
+        if(r >= BlockSum-BlockWidthCount) { // 下端
+          d = Direction[0];
+        } else if(r%BlockWidthCount == BlockWidthCount-1) { // 右端
+          d = Direction[1];
+        } else {
+          d = Direction[~~(Math.random()*(2))];
+        }
+
+        if(Wall[r].c != Wall[r+d].c) {
+          connect(r, r+d);
+        }
+
+        var x = (r%BlockWidthCount)*BlockSize;
+        var y = Math.floor(r/BlockWidthCount)*BlockSize;
+
+        if(!Wall[r].r) drawRight(x,y);
+        if(!Wall[r].b) drawBottom(x,y);
+
+        if(checkFinish()) stopMake();
+      }
+    } , 1);
+  }
+
+  function stopMake(){
+    Title.text('Finish,Solve?').css('cursor','pointer');
+
+    Title.click(function(){
+      Title.text('Solving...').css('cursor','none');
+      drawCircle(0,0);
+      startSolve();
+    })
+
+    clearInterval(loop);
+  }
+
+  function startSolve() {
+    var x=0;
+    var y=0;
+    var n=0;
+
+    solve = setInterval(function(){
+      n = x + y*BlockWidthCount;
+      console.log(n);
+
+      if(!Wall[n].r) {
+        x++;
+      } else if(!Wall[n].b) {
+        y++;
       }
 
-      if(Wall[r].c != Wall[r+d].c) {
-        connect(r, r+d);
-      }
+      drawCircle(x*BlockSize,y*BlockSize);
+      
+      if(Wall[n].r && Wall[n].b) stopSolve();
+      if(x==BlockWidthCount-1 && y==BlockHeightCount-1) stopSolve();
+    } , 1);
+  }
 
-      if(checkFinish()) break;
-    }
+  function stopSolve(){
+    Title.text('Solved:)').css('cursor','none');
+    clearInterval(solve);
+  }
 
-    for(var j=0; j<BlockHeightCount; j++) {
-      for(var i=0; i<BlockWidthCount; i++) {
-        var x = i*BlockSize;
-        var y = j*BlockSize;
-        var n = j*BlockWidthCount+i;
-
-        if(Wall[n].r) drawRight(x,y);
-        if(Wall[n].b) drawBottom(x,y);
-        if(!Wall[n].r && !Wall[n].b) drawCorner(x,y);
-
-        //printCluster(x, y, Wall[n].c);
-      }
-    }
+  function main() {
+    init();
+    startMake();
   }
 
   $(window).load(function () {
-    makeMaze();
+    main();
   })
 
+  var timer = false;
   $(window).resize(function() {
-    makeMaze();
+    if (timer !== false) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(function() {
+      main();
+    }, 100);
   });
-
 
 })
