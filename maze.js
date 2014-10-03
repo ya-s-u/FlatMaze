@@ -188,7 +188,7 @@ $(function(){
   }
 
   function stopMake(){
-    Title.text('Finish,Solve?').css('cursor','pointer');
+    Title.text('Done,Solve?').css('cursor','pointer');
 
     Title.click(function(){
       Title.text('Solving...').css('cursor','none');
@@ -200,6 +200,17 @@ $(function(){
   }
 
   function startSolve() {
+    Solver = new Array();
+    for(var i=0; i<BlockWidthCount; i++) {
+      for(var j=0; j<BlockHeightCount; j++) {
+        Solver[i][j] = {
+          's': 0, //Status 0:none 1:open -1:close
+          'c': 0, //Cost
+          'h': Math.sqrt((BlockWidthCount-i)*(BlockHeightCount-j))  //Heuristic
+        };
+      }
+    }
+
     var x=0;
     var y=0;
     var n=0;
@@ -215,7 +226,7 @@ $(function(){
       }
 
       drawCircle(x*BlockSize,y*BlockSize);
-      
+
       if(Wall[n].r && Wall[n].b) stopSolve();
       if(x==BlockWidthCount-1 && y==BlockHeightCount-1) stopSolve();
     } , 1);
