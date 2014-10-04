@@ -14,8 +14,11 @@ $(function(){
     Wall = new Array();
     Direction = new Array(4);
 
-    w = $("#wrapper").width() - ($("#wrapper").width()%BlockSize) - 60;
-    h = $("#wrapper").height() - ($("#wrapper").height()%BlockSize) - 140;
+    var window_w = $("#wrapper").width()*0.85;
+    var window_h = $("#wrapper").height();
+
+    w = window_w - (window_w%BlockSize);
+    h = window_h - (window_h%BlockSize) - 140;
 
     Maze.attr({
       width: w + StrokeSize,
@@ -157,6 +160,14 @@ $(function(){
     });
   }
 
+  function deleteCircle(x, y) {
+    Maze.drawArc({
+      fillStyle: BackgroundColor,
+      x: x+BlockSize/2+StrokeSize/2, y: y+BlockSize/2+StrokeSize/2,
+      radius: BlockSize/2-StrokeSize/2
+    });
+  }
+
   function startMake() {
     loop = setInterval(function(){
       var r = ~~(Math.random()*(BlockSum-1-1));
@@ -188,46 +199,112 @@ $(function(){
   }
 
   function stopMake(){
-    Title.text('Done,Solve?').css('cursor','pointer');
-
-    Title.click(function(){
-      Title.text('Solving...').css('cursor','none');
-      drawCircle(0,0);
-      startSolve();
-    })
-
     clearInterval(loop);
+    Title.text('Done,Solve?').css('cursor','pointer');
+  }
+
+  function drawMaze() {
+    while(1) {
+      var r = ~~(Math.random()*(BlockSum-1-1));
+      var d;
+
+      if(r == BlockSum-1) continue;// 右下
+
+      if(r >= BlockSum-BlockWidthCount) { // 下端
+        d = Direction[0];
+      } else if(r%BlockWidthCount == BlockWidthCount-1) { // 右端
+        d = Direction[1];
+      } else {
+        d = Direction[~~(Math.random()*(2))];
+      }
+
+      if(Wall[r].c != Wall[r+d].c) {
+        connect(r, r+d);
+      }
+
+      if(checkFinish()) break;
+    }
+
+    for(var r=0; r<BlockSum; r++) {
+      var x = (r%BlockWidthCount)*BlockSize;
+      var y = Math.floor(r/BlockWidthCount)*BlockSize;
+
+      if(!Wall[r].r) drawRight(x,y);
+      if(!Wall[r].b) drawBottom(x,y);
+    }
+
+  }
+
+  function getMin() {
+
   }
 
   function startSolve() {
     Solver = new Array();
-    for(var i=0; i<BlockWidthCount; i++) {
-      for(var j=0; j<BlockHeightCount; j++) {
-        Solver[i][j] = {
-          's': 0, //Status 0:none 1:open -1:close
-          'c': 0, //Cost
-          'h': Math.sqrt((BlockWidthCount-i)*(BlockHeightCount-j))  //Heuristic
-        };
-      }
+    for(var r=0; r<BlockSum; r++) {
+      Solver[r] = 0
+    }
+    Solver[0] = 1;
+
+    Answer = new Array();
+    for(var r=0; r<BlockSum; r++) {
+      Answer[r] = 0
     }
 
-    var x=0;
-    var y=0;
-    var n=0;
+
+    // var x = (r%BlockWidthCount)*BlockSize;
+    // var y = Math.floor(r/BlockWidthCount)*BlockSize;
+
+    var x = 0;
+    var y = 0;
+    var n = 0;
 
     solve = setInterval(function(){
       n = x + y*BlockWidthCount;
-      console.log(n);
+      var temp = 10;
+      var a = '';
 
       if(!Wall[n].r) {
-        x++;
-      } else if(!Wall[n].b) {
-        y++;
+        if(temp > Solver[n+1]) {
+          temp = Solver[n+1];
+          a='r';
+        }
+      }
+      if(!Wall[n].b) {
+        if(temp > Solver[n+BlockWidthCount]) {
+          temp = Solver[n+BlockWidthCount];
+          a='b';
+        }
+      }
+      if(n!=0 && !Wall[n-1].r) {
+        if(temp > Solver[n-1]) {
+          temp = Solver[n-1];
+          a='l';
+        }
+      }
+      if(n>BlockWidthCount-1 && !Wall[n-BlockWidthCount].b) {
+        if(temp > Solver[n-BlockWidthCount]) {
+          temp = Solver[n-BlockWidthCount];
+          a='t';
+        }
       }
 
-      drawCircle(x*BlockSize,y*BlockSize);
+      var s = 0;
+      switch(a) {
+        case 'r': x++;s=n+1;break;
+        case 'b': y++;s=n+BlockWidthCount;break;
+        case 'l': x--;s=n-1;break;
+        case 't': y--;s=n-BlockWidthCount;break;
+      }
 
-      if(Wall[n].r && Wall[n].b) stopSolve();
+      Solver[s]++;
+      if(Answer[s] > 0) {
+        deleteCircle(x*BlockSize,y*BlockSize);
+      } else {
+        Answer[s]++;
+        drawCircle(x*BlockSize,y*BlockSize);
+      }
+
       if(x==BlockWidthCount-1 && y==BlockHeightCount-1) stopSolve();
     } , 1);
   }
@@ -240,6 +317,20 @@ $(function(){
   function main() {
     init();
     startMake();
+
+    Title.click(function(){
+      clearInterval(loop);
+      init();
+      drawMaze();
+      Title.text('Done,Solve?');
+
+      Title.click(function(){
+        Title.text('Solving...').css('cursor','none');
+        drawCircle(0,0);
+        startSolve();
+        Title.text('Solved:)');
+      })
+    })
   }
 
   $(window).load(function () {
